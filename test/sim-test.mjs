@@ -1,0 +1,71 @@
+import assert from 'node:assert/strict';
+import { TUNING, MISSIONS } from '../game/src/config.js';
+import { createRng } from '../game/src/random.js';
+import { Terrain } from '../game/src/terrain.js';
+import { Plane } from '../game/src/plane.js';
+import { MissionBook } from '../game/src/missions.js';
+
+const rng = createRng(20261126);
+const terrain = new Terrain(rng);
+const plane = new Plane(500, 170);
+const input = { keysDown: new Set() };
+const initialX = plane.x, initialFuel = plane.fuel;
+// Scripted cruise: add power, set a shallow climb, then trim through level flight.
+for (let i = 0; i < 600; i++) {
+  input.keysDown.clear();
+  if (i < 60) input.keysDown.add('KeyW');
+  if (i < 14) input.keysDown.add('KeyA');
+  if (i >= 240 && i < 252) input.keysDown.add('KeyD');
+  plane.update(1 / 60, input, TUNING, terrain);
+  assert.ok(Number.isFinite(plane.x) && Number.isFinite(plane.y), 'finite flight coordinates');
+}
+assert.ok(plane.x > initialX + 300, 'plane moves forward');
+assert.ok(!plane._crashed, 'scripted flight survives 600 steps');
+console.log('PASS: plane moves through 600 fixed physics steps');
+assert.ok(plane.fuel < initialFuel && plane.fuel >= 0, 'fuel drains');
+console.log('PASS: engine burns fuel');
+for (let x = -100; x <= terrain.length + 100; x += 13) {
+  assert.ok(Number.isFinite(terrain.groundHeight(x)), `ground height at ${x}`);
+  assert.ok(Number.isFinite(terrain.riverY(x)), `river height at ${x}`);
+}
+assert.equal(terrain.rings.length, 6);
+console.log('PASS: finite terrain across the valley and six flight rings');
+const duplicate = new Terrain(createRng(20261126));
+assert.deepEqual(duplicate.rings, terrain.rings);
+assert.deepEqual(duplicate.ridges, terrain.ridges);
+console.log('PASS: seeded terrain is deterministic');
+const book = new MissionBook(rng, terrain);
+assert.deepEqual(book.queue.map(m => m.id), MISSIONS.map(m => m.id));
+assert.equal(book.startNext().id, 'rings');
+assert.equal(book.current.ringsTotal, 6);
+assert.equal(book.ringPassed(book.current.rings[1]), false, 'gates must be flown in order');
+const first = book.current.rings[0];
+assert.equal(book.ringPassed(first), true);
+assert.equal(book.score, TUNING.ringBonus);
+assert.equal(book.current.ringsDone, 1);
+assert.equal(book.ringsHit, 1);
+assert.equal(book.ringPassed(first), false, 'no duplicate gate points');
+console.log('PASS: rings mission starts first and ordered gates award points once');
+for (const ring of book.current.rings.slice(1)) book.ringPassed(ring);
+const target = book.current.targetStrip;
+const soft = book.landReport({ touchdownVy: 18, vy: 0 }, target);
+assert.equal(soft.ok, true); assert.equal(soft.bonus, TUNING.landBonus);
+assert.equal(book.landReport({ touchdownVy: 30 }, target).bonus, TUNING.landBonus / 2);
+assert.equal(book.landReport({ touchdownVy: 10 }, terrain.airstrips[0]).ok, false);
+book.complete(); book.complete();
+assert.equal(book.deliveries, 1);
+assert.equal(book.score, TUNING.ringBonus * 6 + TUNING.landBonus);
+assert.equal(book.startNext().id, 'delivery');
+const rescue = book.startNext();
+assert.equal(rescue.id, 'rescue'); assert.ok(rescue.flag);
+assert.notEqual(rescue.pickupStrip, rescue.targetStrip);
+assert.equal(book.landReport({ touchdownVy: 10 }, rescue.pickupStrip).ok, true);
+rescue.state = 'return';
+assert.equal(book.landReport({ touchdownVy: 10 }, rescue.targetStrip).ok, true);
+console.log('PASS: landing rewards, mission cycle, rescue pickup and destination');
+book.startNext();
+assert.equal(book.queue.length, 2, 'shuffled cycle refills');
+book.reset();
+assert.equal(book.score, 0); assert.equal(book.current, null);
+assert.deepEqual(book.queue.map(m => m.id), MISSIONS.map(m => m.id));
+console.log('PASS: mission reset restores the first cycle');

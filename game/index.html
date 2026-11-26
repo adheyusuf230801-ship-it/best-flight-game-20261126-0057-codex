@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#10191d">
+    <title>Ridgeline Courier — a mountain flight game</title>
+    <style>
+      * { box-sizing: border-box; }
+      html, body { width: 100%; height: 100%; margin: 0; }
+      body {
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background: #10191d;
+        color: #e9e5cf;
+        font-family: system-ui, sans-serif;
+      }
+      #game {
+        display: block;
+        width: min(100vw, 160vh);
+        height: auto;
+        aspect-ratio: 8 / 5;
+        background: #17282c;
+        touch-action: none;
+        outline: none;
+      }
+      #game:focus-visible { outline: 2px solid #f3ca77; outline-offset: -2px; }
+      noscript { position: absolute; padding: 1rem; background: #10191d; }
+    </style>
+  </head>
+  <body>
+    <canvas id="game" width="1280" height="800" tabindex="0"
+      aria-label="Ridgeline Courier mountain flight game. Use W and S or up and down arrows for throttle; A and D or left and right arrows for pitch.">
+      Ridgeline Courier requires a browser with canvas support.
+    </canvas>
+    <noscript>Enable JavaScript to fly Ridgeline Courier.</noscript>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
